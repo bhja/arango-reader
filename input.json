@@ -1,8 +1,0 @@
-{
-  "host": "localhost",
-  "port" : 8529,
-  "userName": "root",
-  "password" : "key2publish",
-  "database" : "key2publish",
-  "file" : "C:\\CPK2P\\result.json"
-}
