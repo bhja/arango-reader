@@ -1,22 +1,28 @@
 package com.key2publish.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.dataformat.csv.CsvMapper;
+import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import com.key2publish.model.Document;
 import com.key2publish.model.DocumentResponse;
 import com.key2publish.model.ProgramParams;
 import com.key2publish.model.QueryParams;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderHeaderAware;
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.StringWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -24,13 +30,19 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.print.Doc;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -72,6 +84,7 @@ public class DataService {
            URI.create(String.format("%s/collection/%s",params.url(),params.collection())), "GET",BodyPublishers.noBody());
          HttpResponse<String> response = client.execute(request, BodyHandlers.ofString());
         if(response.statusCode() == 404){
+          logger.info("Craating the collection as it does not exist");
           //Create the collection and write the data.
            request = client.request(
               URI.create(String.format("%s/collection",params.url(),params.collection())), "POST",BodyPublishers.ofString(objectMapper.writeValueAsString(Map.of("name",params.collection()))));
@@ -82,40 +95,45 @@ public class DataService {
            }
         }
        String csvAsString = new BufferedReader(new FileReader(params.file())).lines().collect(Collectors.joining("\n"));
-       JSONArray array = new JSONArray(org.json.CDL.toJSONArray(csvAsString));
-       //Get the key for the code.
+       CsvSchema csv = CsvSchema.emptySchema().withHeader();
+         CsvMapper csvMapper = new CsvMapper();
+         MappingIterator<Map<String, String>> mappingIterator =  csvMapper.reader().forType(Map.class).with(csv).readValues(csvAsString.getBytes(
+             Charset.defaultCharset()));
+         List<Map<String, String>> list = mappingIterator.readAll();
+         //Get the key for the code.
          String query = "FOR r IN\n" + params.collection()
-             + "  RETURN { 'key' : r._key,'code':r.code}";
+             + "  RETURN { 'key' : r['_key'],'code':r['"+ params.uniqueKey()+"']}";
+         //logger.info(query);
          List<Document> documentList = execute(params, query);
+
          JSONArray patch = new JSONArray();
          JSONArray create = new JSONArray();
-         for(int i=0;i<array.length();i++){
-           JSONObject p = (JSONObject) array.get(i);
-           Document d = documentList.stream().filter(r0 -> r0.code().equals(p.get("code")))
-               .findFirst().orElse(null);
-           if (d != null) {
-             p.put("_key", d.key());
-             patch.put(p);
-           }else{
-             create.put(p);
-           }
-         };
-       if(create.length()>0) {
-         logger.info("New record count " + create.length());
-         writeToDB(create, params, client, "POST");
-       }
-       if(patch.length()>0) {
-         logger.info("Update record count " + patch.length());
-         writeToDB(patch, params, client, "PATCH");
-       }
-
+         for (int i = 0; i < list.size(); i++) {
+           Map<String, String> p = list.get(i);
+             Document d = documentList.stream().filter(r0 -> r0.code().equals(p.get(params.uniqueKey())))
+                 .findFirst().orElse(null);
+             if (d != null) {
+               p.put("_key", d.key());
+               patch.put(p);
+             } else {
+               create.put(p);
+             }
+         }
+         if (create.length() > 0) {
+           logger.info("New record count " + create.length());
+           writeToDB(create, params, client, "POST");
+         }
+         if (patch.length() > 0) {
+           logger.info("Update record count " + patch.length());
+           writeToDB(patch, params, client, "PATCH");
+         }
      }catch (Exception e){
        logger.error("Error reading the import" + e.getMessage());
        System.exit(1);
      }
    }
 
-   private void writeToDB(JSONArray array, ProgramParams params, HTTPClient client,String method){
+     private void writeToDB(JSONArray array, ProgramParams params, HTTPClient client,String method){
      List<Object> list = array.toList();
      int batch = list.size() > params.batchSize() ? params.batchSize()
          : list.size(), start = 0, size = list.size();

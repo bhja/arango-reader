@@ -3,8 +3,8 @@
   "userName": "root",
   "password" : "openSesame",
   "database" : "_system",
-  "file" : "p0.csv",
-  "collection" : "k2p_genome",
+  "file" : "genome.csv",
+  "collection" : "k2p_genome0",
   "uniqueKey" : "ITK artikel nummer",
   "batchSize" : 10000,
   "action" : "import"
