@@ -1,0 +1,11 @@
+{
+  "url" : "http://localhost:8529/_db/_system/_api",
+  "userName": "root",
+  "password" : "openSesame",
+  "database" : "_system",
+  "file" : "p0.csv",
+  "collection" : "k2p_genome",
+  "uniqueKey" : "ITK artikel nummer",
+  "batchSize" : 10000,
+  "action" : "import"
+}

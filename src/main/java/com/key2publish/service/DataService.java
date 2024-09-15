@@ -1,106 +1,55 @@
 package com.key2publish.service;
 
-import com.arangodb.ArangoCursor;
-import com.arangodb.ArangoDB;
-import com.arangodb.Protocol;
-import com.arangodb.model.AqlQueryOptions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.key2publish.model.Document;
 import com.key2publish.model.DocumentResponse;
 import com.key2publish.model.ProgramParams;
 import com.key2publish.model.QueryParams;
-import io.vertx.core.http.HttpMethod;
+import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderHeaderAware;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import javax.print.Doc;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class DataService {
   Logger logger = LoggerFactory.getLogger(DataService.class);
-  private ArangoDB arangoDB;
-  private String database;
+
   private ObjectMapper objectMapper ;
 
-  public DataService(ProgramParams params){
-    this.database = params.database();
+  public DataService(){
     objectMapper = new ObjectMapper();
   }
 
-  public void retrieveData(ProgramParams params){
-    try{
-      arangoDB = new ArangoDB.Builder().protocol(params.protocol()!=null ? params.protocol():Protocol.HTTP_JSON).user(params.userName()).host(params.host(),params.port()).password(
-          params.password()).build();
-      List<Document> documentList = new ArrayList<>();
-      String query = "FOR c IN k2p_product RETURN {'key': c._key , 'code':c.code}";
-      AqlQueryOptions options = new AqlQueryOptions().batchSize(10000).stream(true).cache(false);
-      ArangoCursor<Document> cursor = arangoDB.db(database!=null?database:"_system").query(query,
-          Document.class,options);
-      while (cursor.hasNext()){
-        documentList.add(cursor.next());
-      }
-      writeToFile(documentList, params.file());
+  public void httpCall(ProgramParams params,String query){
 
-    }catch (Exception e){
-      System.err.println("Error writing to the file due to" + e.getMessage());
-    }finally {
-      arangoDB.shutdown();
-    }
-  }
-
-  public void shutDown(){
-    arangoDB.shutdown();
-  }
-
-
-  public void httpCall(ProgramParams params){
-    System.out.println(params);
-    HTTPClient client = new HTTPClient(params.userName(), params.password());
-    QueryParams params1 = new QueryParams("FOR c IN k2p_product RETURN {key:c._key , code:c.code}",
-        Map.of("options",Map.of("stream",true)),10000);
     try {
-      boolean hasMore;
-      List<Document> documentList = new ArrayList<>();
-      String url ;
-      String method ;
-      DocumentResponse rResponse = null;
-      do {
-        if(rResponse!=null){
-          url = String.format("%s/%s",params.url(),rResponse.id());
-          method = HttpMethod.PUT.name();
-        }else{
-          url = params.url();
-          method = HttpMethod.POST.name();
-        }
-
-        HttpRequest request = client.request(
-            URI.create(url), method,
-            BodyPublishers.ofString(objectMapper.writeValueAsString(params1)));
-        HttpResponse<String> response = client.execute(request, BodyHandlers.ofString());
-        if(response.statusCode()==201 || response.statusCode() == 200) {
-          rResponse = objectMapper.readValue(response.body(),
-              DocumentResponse.class);
-          hasMore = rResponse.hasMore();
-          documentList.addAll(rResponse.result());
-        }else{
-        System.err.println("Error fetching the data "  + response.statusCode() + " error " + response.body());
-        break;
-        }
-      }while(hasMore);
-      writeToFile(documentList, params.file());
-    }catch (JsonProcessingException e){
-      System.err.println("Error " + e.getMessage());
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    } catch (InterruptedException e) {
+      writeToFile(execute(params, query), params.file());
+    }catch(IOException e){
       throw new RuntimeException(e);
     }
   }
@@ -115,4 +64,126 @@ public class DataService {
      writer.close();
      logger.info("Data dump to file completed");
    }
+
+   public void importCsv(ProgramParams params) {
+     try{
+         HTTPClient client = new HTTPClient(params.userName(), params.password());
+         HttpRequest request = client.request(
+           URI.create(String.format("%s/collection/%s",params.url(),params.collection())), "GET",BodyPublishers.noBody());
+         HttpResponse<String> response = client.execute(request, BodyHandlers.ofString());
+        if(response.statusCode() == 404){
+          //Create the collection and write the data.
+           request = client.request(
+              URI.create(String.format("%s/collection",params.url(),params.collection())), "POST",BodyPublishers.ofString(objectMapper.writeValueAsString(Map.of("name",params.collection()))));
+           response = client.execute(request, BodyHandlers.ofString());
+           if(response.statusCode() != 200){
+              logger.error("Could not create the collection " + params.collection());
+              throw new RuntimeException("Error creating collection " + response.body());
+           }
+        }
+       String csvAsString = new BufferedReader(new FileReader(params.file())).lines().collect(Collectors.joining("\n"));
+       JSONArray array = new JSONArray(org.json.CDL.toJSONArray(csvAsString));
+       //Get the key for the code.
+         String query = "FOR r IN\n" + params.collection()
+             + "  RETURN { 'key' : r._key,'code':r.code}";
+         List<Document> documentList = execute(params, query);
+         JSONArray patch = new JSONArray();
+         JSONArray create = new JSONArray();
+         for(int i=0;i<array.length();i++){
+           JSONObject p = (JSONObject) array.get(i);
+           Document d = documentList.stream().filter(r0 -> r0.code().equals(p.get("code")))
+               .findFirst().orElse(null);
+           if (d != null) {
+             p.put("_key", d.key());
+             patch.put(p);
+           }else{
+             create.put(p);
+           }
+         };
+       if(create.length()>0) {
+         logger.info("New record count " + create.length());
+         writeToDB(create, params, client, "POST");
+       }
+       if(patch.length()>0) {
+         logger.info("Update record count " + patch.length());
+         writeToDB(patch, params, client, "PATCH");
+       }
+
+     }catch (Exception e){
+       logger.error("Error reading the import" + e.getMessage());
+       System.exit(1);
+     }
+   }
+
+   private void writeToDB(JSONArray array, ProgramParams params, HTTPClient client,String method){
+     List<Object> list = array.toList();
+     int batch = list.size() > params.batchSize() ? params.batchSize()
+         : list.size(), start = 0, size = list.size();
+     try {
+       do {
+         HttpRequest request = client.request(
+             URI.create(
+                 String.format("%s/document/%s", params.url(), params.collection())),
+             method, BodyPublishers.ofString(
+                 objectMapper.writeValueAsString(list.subList(start, start + batch))));
+         HttpResponse response = client.execute(request, BodyHandlers.ofString());
+         if (response.statusCode() == 202) {
+           logger.info("Writing to the collection Completed ");
+         } else {
+           logger.error("Issue creating the documents " + response.body());
+           System.exit(1);
+         }
+         start = start + batch;
+       } while (start < size);
+       logger.info("Completed the merge and insert for the data set");
+     }catch (Exception e){
+       throw new RuntimeException(e);
+     }
+   }
+
+   private List<Document> execute(ProgramParams params,String query){
+     HTTPClient client = new HTTPClient(params.userName(), params.password());
+     QueryParams params1 = new QueryParams(query,
+         Map.of("options",Map.of("stream",true)), params.batchSize());
+     try {
+       boolean hasMore;
+       List<Document> documentList = new ArrayList<>();
+       String url ;
+       String method ;
+       DocumentResponse rResponse = null;
+       do {
+         if(rResponse!=null){
+           url = String.format("%s/cursor/%s",params.url(),rResponse.id());
+           method = "PUT";
+         }else{
+           url = String.format("%s/cursor",params.url());
+           method = "POST";
+         }
+
+         HttpRequest request = client.request(
+             URI.create(url), method,
+             BodyPublishers.ofString(objectMapper.writeValueAsString(params1)));
+         HttpResponse<String> response = client.execute(request, BodyHandlers.ofString());
+         if(response.statusCode()==201 || response.statusCode() == 200) {
+           rResponse = objectMapper.readValue(response.body(),
+               DocumentResponse.class);
+           hasMore = rResponse.hasMore();
+           documentList.addAll(rResponse.result());
+         }else{
+           logger.error("Error fetching the data "  + response.statusCode() + " error " + response.body());
+           break;
+         }
+       }while(hasMore);
+       return documentList;
+     }
+       catch (JsonProcessingException e){
+         throw new RuntimeException(e);
+       } catch (IOException e) {
+         throw new RuntimeException(e);
+       } catch (InterruptedException e) {
+         throw new RuntimeException(e);
+       }
+   }
+
+
 }

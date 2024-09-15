@@ -21,15 +21,14 @@ public class App
                 System.exit(1);
             }
             ProgramParams params = mapper.readValue(new File(args[0]), ProgramParams.class);
-            DataService service = new DataService(params);
+            DataService service = new DataService();
+            if(params.action().equals("import")){
+                service.importCsv(params);
+            }else{
+                service.httpCall(params,"FOR c IN k2p_product RETURN {key:c._key , code:c.code}");
+            }
 
-            if(params.url()==null) {
-                service.retrieveData(params);
-                service.shutDown();
-            }
-            else {
-                service.httpCall(params);
-            }
+
         }catch (Exception e){
             System.err.println("Could not read the file due to " + e.getMessage());
             System.exit(1);
