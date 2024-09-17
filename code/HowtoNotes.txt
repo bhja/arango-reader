@@ -1,0 +1,5 @@
+1. In the input -> the url is the file is the csv file path
+2. Unique key is the column by which a record is identified. For Product it is code. for genome it is ITK artikel nummer
+3. Collection is the name of the document where the documents must reside. If this does not exist , code creates the collection and writes to it.
+4. It merges the data in the database with the new data or inserts a record if it is missing.
+

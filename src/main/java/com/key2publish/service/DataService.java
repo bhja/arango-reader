@@ -3,46 +3,26 @@ package com.key2publish.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import com.key2publish.model.Document;
 import com.key2publish.model.DocumentResponse;
 import com.key2publish.model.ProgramParams;
 import com.key2publish.model.QueryParams;
-import com.opencsv.CSVReader;
-import com.opencsv.CSVReaderHeaderAware;
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.StringWriter;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import javax.print.Doc;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -94,30 +74,48 @@ public class DataService {
               throw new RuntimeException("Error creating collection " + response.body());
            }
         }
-       String csvAsString = new BufferedReader(new FileReader(params.file())).lines().collect(Collectors.joining("\n"));
-       CsvSchema csv = CsvSchema.emptySchema().withHeader();
+       String csvAsString = new BufferedReader(new FileReader(params.file(), Charset.forName(params.encoding()))).lines().collect(Collectors.joining(System.lineSeparator()));
+       CsvSchema csv = CsvSchema.emptySchema().withHeader().withColumnSeparator(params.columnSeparator()).withQuoteChar('"').withLineSeparator(System.lineSeparator());
          CsvMapper csvMapper = new CsvMapper();
+
+         //csvMapper.typedSchemaFor(Record.class);
          MappingIterator<Map<String, String>> mappingIterator =  csvMapper.reader().forType(Map.class).with(csv).readValues(csvAsString.getBytes(
-             Charset.defaultCharset()));
+             Charset.forName(params.encoding())));
          List<Map<String, String>> list = mappingIterator.readAll();
+         list.stream().map(r->r.get(params.uniqueKey())).collect(Collectors.toList());
+         if(list.size()==0){
+           logger.error("Check if the file type and the encoding are set according to the input provided");
+           System.exit(1);
+         }
          //Get the key for the code.
          String query = "FOR r IN\n" + params.collection()
-             + "  RETURN { 'key' : r['_key'],'code':r['"+ params.uniqueKey()+"']}";
+             + "  RETURN { 'key' : r['_key'],'code':r['code']}";
          //logger.info(query);
          List<Document> documentList = execute(params, query);
-
          JSONArray patch = new JSONArray();
          JSONArray create = new JSONArray();
          for (int i = 0; i < list.size(); i++) {
            Map<String, String> p = list.get(i);
-             Document d = documentList.stream().filter(r0 -> r0.code().equals(p.get(params.uniqueKey())))
-                 .findFirst().orElse(null);
-             if (d != null) {
-               p.put("_key", d.key());
-               patch.put(p);
-             } else {
-               create.put(p);
-             }
+           Document d = documentList.stream().filter(r0 -> r0.code().equals(p.get(params.uniqueKey())))
+               .findFirst().orElse(null);
+            if(params.inputType().equals("data")) {
+              JSONObject object = new JSONObject();
+              object.put("basic", p);
+              object.put("code", p.get(params.uniqueKey()));
+              if (d != null) {
+                object.put("_key", d.key());
+                patch.put(object);
+              } else {
+                create.put(object);
+              }
+            }else{
+              if (d != null) {
+                p.put("_key", d.key());
+                patch.put(p);
+              } else {
+                create.put(p);
+              }
+            }
          }
          if (create.length() > 0) {
            logger.info("New record count " + create.length());
@@ -127,7 +125,9 @@ public class DataService {
            logger.info("Update record count " + patch.length());
            writeToDB(patch, params, client, "PATCH");
          }
+       logger.info("Completed the merge and insert for the collection " + params.collection() );
      }catch (Exception e){
+       e.printStackTrace();
        logger.error("Error reading the import" + e.getMessage());
        System.exit(1);
      }
@@ -146,14 +146,14 @@ public class DataService {
                  objectMapper.writeValueAsString(list.subList(start, start + batch))));
          HttpResponse response = client.execute(request, BodyHandlers.ofString());
          if (response.statusCode() == 202) {
-           logger.info("Writing to the collection Completed ");
+           logger.info("Batched document write successful");
          } else {
            logger.error("Issue creating the documents " + response.body());
            System.exit(1);
          }
          start = start + batch;
        } while (start < size);
-       logger.info("Completed the merge and insert for the data set");
+
      }catch (Exception e){
        throw new RuntimeException(e);
      }

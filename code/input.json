@@ -1,8 +1,8 @@
 {
-  "url" : "http://localhost:8529/_db/_system/_api",
+  "url" : "http://localhost:8529/_db/key2publish/_api",
   "userName": "root",
-  "password" : "openSesame",
-  "file" : "header_list.csv",
+  "password" : "key2publish",
+  "file" : "C:\\CPK2P\\CSV-Import\\header_list.csv",
   "collection" : "k2p_header",
   "uniqueKey" : "name_k2e",
   "batchSize" : 10000,
