@@ -2,12 +2,11 @@
   "url" : "http://localhost:8529/_db/_system/_api",
   "userName": "root",
   "password" : "openSesame",
-  "file" : "header_list.csv",
-  "collection" : "k2p_header",
-  "uniqueKey" : "name_k2e",
+  "file" : "stjhon.csv",
+  "collection" : "k2p_genome",
+  "uniqueKey" : "ITK artikel nummer",
   "batchSize" : 10000,
   "action" : "import",
-  "columnSeparator" : ",",
-  "encoding" : "UTF-8",
-  "inputType" : "header"
+  "columnSeparator" : "\t",
+  "encoding" : "UTF-16"
 }

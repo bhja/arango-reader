@@ -95,27 +95,18 @@ public class DataService {
          JSONArray patch = new JSONArray();
          JSONArray create = new JSONArray();
          for (int i = 0; i < list.size(); i++) {
+           JSONObject object = new JSONObject();
            Map<String, String> p = list.get(i);
-           Document d = documentList.stream().filter(r0 -> r0.code().equals(p.get(params.uniqueKey())))
-               .findFirst().orElse(null);
-            if(params.inputType().equals("data")) {
-              JSONObject object = new JSONObject();
-              object.put("basic", p);
-              object.put("code", p.get(params.uniqueKey()));
-              if (d != null) {
-                object.put("_key", d.key());
-                patch.put(object);
-              } else {
-                create.put(object);
-              }
-            }else{
-              if (d != null) {
-                p.put("_key", d.key());
-                patch.put(p);
-              } else {
-                create.put(p);
-              }
-            }
+           Document d = documentList.stream().filter(r0 -> p.get(params.uniqueKey()).equals(r0.code()))
+                 .findFirst().orElse(null);
+           object.put("basic",p);
+           object.put("code",p.get(params.uniqueKey()));
+             if (d != null) {
+               object.put("_key",d.key());
+               patch.put(object);
+             } else {
+               create.put(object);
+             }
          }
          if (create.length() > 0) {
            logger.info("New record count " + create.length());

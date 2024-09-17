@@ -8,6 +8,5 @@
   "batchSize" : 10000,
   "action" : "import",
   "columnSeparator" : ",",
-  "encoding" : "UTF-8",
-  "inputType" : "header"
+  "encoding" : "UTF-8"
 }
