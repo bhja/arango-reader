@@ -1,5 +1,6 @@
 package com.key2publish.service;
 
+import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +21,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -75,18 +77,23 @@ public class DataService {
            }
         }
        String csvAsString = new BufferedReader(new FileReader(params.file(), Charset.forName(params.encoding()))).lines().collect(Collectors.joining(System.lineSeparator()));
-       CsvSchema csv = CsvSchema.emptySchema().withHeader().withColumnSeparator(params.columnSeparator()).withQuoteChar('"').withLineSeparator(System.lineSeparator());
-         CsvMapper csvMapper = new CsvMapper();
+       CsvSchema csv = CsvSchema.emptySchema().withHeader().withColumnSeparator(params.columnSeparator()).withLineSeparator(System.lineSeparator());
+       CsvMapper csvMapper = new CsvMapper();
+       MappingIterator<Map<String, String>> mappingIterator =  csvMapper.reader().forType(Map.class).with(csv).readValues(csvAsString.getBytes());
+       while (mappingIterator.hasNext()){
+         System.out.println(mappingIterator.next());
+       }
 
-         //csvMapper.typedSchemaFor(Record.class);
-         MappingIterator<Map<String, String>> mappingIterator =  csvMapper.reader().forType(Map.class).with(csv).readValues(csvAsString.getBytes(
-             Charset.forName(params.encoding())));
          List<Map<String, String>> list = mappingIterator.readAll();
          list.stream().map(r->r.get(params.uniqueKey())).collect(Collectors.toList());
          if(list.size()==0){
            logger.error("Check if the file type and the encoding are set according to the input provided");
            System.exit(1);
          }
+        if(!list.get(0).containsKey(params.uniqueKey())){
+          logger.error("Input file " + params.file()+" does not contain the key specified " + params.uniqueKey());
+            System.exit(1);
+       }
          //Get the key for the code.
          String query = "FOR r IN\n" + params.collection()
              + "  RETURN { 'key' : r['_key'],'code':r['code']}";

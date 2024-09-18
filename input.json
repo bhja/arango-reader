@@ -1,12 +1,12 @@
 {
   "url" : "http://localhost:8529/_db/_system/_api",
   "userName": "root",
-  "password" : "openSesame",
-  "file" : "stjhon.csv",
-  "collection" : "k2p_genome",
+  "password" : "key2publish",
+  "file" : "stjhon (1).csv",
+  "collection" : "k2p_product",
   "uniqueKey" : "ITK artikel nummer",
-  "batchSize" : 10000,
+  "batchSize" : 3000,
   "action" : "import",
-  "columnSeparator" : "\t",
-  "encoding" : "UTF-16"
+  "columnSeparator" : ",",
+  "encoding" : "UTF-8"
 }
