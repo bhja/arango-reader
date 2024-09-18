@@ -15,5 +15,4 @@ Input json for the execution.
     "encoding" : "UTF-16"
     }
 </p>
-NOTE: The uniqueKey should match the file and map to the code in the table. 
 
