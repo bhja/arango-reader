@@ -80,10 +80,6 @@ public class DataService {
        CsvSchema csv = CsvSchema.emptySchema().withHeader().withColumnSeparator(params.columnSeparator()).withLineSeparator(System.lineSeparator());
        CsvMapper csvMapper = new CsvMapper();
        MappingIterator<Map<String, String>> mappingIterator =  csvMapper.reader().forType(Map.class).with(csv).readValues(csvAsString.getBytes());
-       while (mappingIterator.hasNext()){
-         System.out.println(mappingIterator.next());
-       }
-
          List<Map<String, String>> list = mappingIterator.readAll();
          list.stream().map(r->r.get(params.uniqueKey())).collect(Collectors.toList());
          if(list.size()==0){
