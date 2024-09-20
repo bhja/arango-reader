@@ -1,13 +1,11 @@
 package com.key2publish.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import java.util.Map;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class DocumentResponse {
+public class HeaderResponse {
 
-  List<Document> result;
+  List<Header> result;
   boolean hasMore;
   String id;
   Map<String, Object> extra;
@@ -16,15 +14,15 @@ public class DocumentResponse {
   boolean error;
   int code;
 
-  public DocumentResponse() {
+  public HeaderResponse() {
 
   }
 
-  public List<Document> getResult() {
+  public List<Header> getResult() {
     return result;
   }
 
-  public void setResult(List<Document> result) {
+  public void setResult(List<Header> result) {
     this.result = result;
   }
 
@@ -84,3 +82,6 @@ public class DocumentResponse {
     this.code = code;
   }
 }
+
+
+

@@ -2,11 +2,12 @@
   "url" : "http://localhost:8529/_db/key2publish/_api",
   "userName": "root",
   "password" : "key2publish",
-  "file" : "C:\\CPK2P\\CSV-Import\\header_list.csv",
+  "file" : "C:\\CPK2P\\CSV-Import\\stjhon.csv",
   "collection" : "k2p_header",
-  "uniqueKey" : "name_k2e",
+  "uniqueKey" : "ITK artikel nummer",
   "batchSize" : 10000,
   "action" : "import",
-  "columnSeparator" : ",",
-  "encoding" : "UTF-8"
+  "columnSeparator" : "\t",
+  "encoding" : "UTF-16",
+  "useHeader" : true
 }

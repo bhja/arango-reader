@@ -1,12 +1,13 @@
 {
-  "url" : "http://localhost:8529/_db/_system/_api",
+  "url" : "http://localhost:8529/_db/key2publish/_api",
   "userName": "root",
   "password" : "key2publish",
   "file" : "stjhon (1).csv",
-  "collection" : "k2p_product",
+  "collection" : "k2p_product_ver1",
   "uniqueKey" : "ITK artikel nummer",
   "batchSize" : 3000,
   "action" : "import",
-  "columnSeparator" : ",",
-  "encoding" : "UTF-8"
+  "columnSeparator" : "\t",
+  "encoding" : "UTF-16",
+  "useHeader" : "true"
 }
